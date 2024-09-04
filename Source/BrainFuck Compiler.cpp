@@ -136,17 +136,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         hFile_outMenu = CreateMenu();
         hConfigureMenu = CreateMenu();
         hOutSpaceMenu = CreateMenu();
-        AppendMenu(hFileMenu, MF_STRING, 1, L"导入");
-        AppendMenu(hFileMenu, MF_POPUP, (UINT_PTR)hFile_outMenu, L"导出工作区内容为...");
-        AppendMenu(hFile_outMenu, MF_STRING, 3, L".exe（Windows平台可执行文件）与.cpp（C++源文件）");
-        AppendMenu(hFile_outMenu, MF_STRING, 5, L".bf（BrainFuck源文件）");
-        AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"文件");
-        AppendMenu(hWorkspaceMenu, MF_STRING, 2, L"清空工作区");
-        AppendMenu(hWorkspaceMenu, MF_POPUP, (UINT_PTR)hOutSpaceMenu, L"输出框...");
-        AppendMenu(hOutSpaceMenu, MF_STRING, 6, L"清空输出框");
-        AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hWorkspaceMenu, L"工作区...");
-        AppendMenu(hConfigureMenu, MF_STRING, 4, L"G++编译器路径");
-        AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hConfigureMenu, L"配置...");
+        AppendMenu(hFileMenu, MF_STRING, 1, L"Import");
+        AppendMenu(hFileMenu, MF_POPUP, (UINT_PTR)hFile_outMenu, L"Export workspace content to...");
+        AppendMenu(hFile_outMenu, MF_STRING, 3, L".exe（Windows executable）and.cpp（C++ source file）");
+        AppendMenu(hFile_outMenu, MF_STRING, 5, L".bf（BrainFuck source file）"); 
+        AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"File");
+        AppendMenu(hWorkspaceMenu, MF_STRING, 2, L"Clean WorkSpace");
+        AppendMenu(hWorkspaceMenu, MF_POPUP, (UINT_PTR)hOutSpaceMenu, L"OutBox...");
+        AppendMenu(hOutSpaceMenu, MF_STRING, 6, L"Clean OutBox");
+        AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hWorkspaceMenu, L"WorkSpace...");
+        AppendMenu(hConfigureMenu, MF_STRING, 4, L"G++ Compiler Path");
+        AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hConfigureMenu, L"Configuration...");
 
         SetMenu(hWnd, hMenu);
 
@@ -172,7 +172,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             ofn.hwndOwner = hWnd;
             ofn.lpstrFile = szFile;
             ofn.nMaxFile = sizeof(szFile) / sizeof(WCHAR);
-            ofn.lpstrFilter = L"BrainFuck源文件\0*.*\0";
+            ofn.lpstrFilter = L"BrainFuck Source File\0*.*\0";
             ofn.nFilterIndex = 1;
             ofn.lpstrFileTitle = NULL;
             ofn.nMaxFileTitle = 0;
@@ -251,7 +251,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             ofn.hwndOwner = hWnd;
             ofn.lpstrFile = szPath;
             ofn.nMaxFile = sizeof(szPath) / sizeof(szPath[0]);
-            ofn.lpstrFilter = L"\0C++源文件\0*.cpp\0All Files\0*.*\0";
+            ofn.lpstrFilter = L"\0C++ Source Code\0*.cpp\0All Files\0*.*\0";
             ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
 
             // 显示文件对话框
@@ -266,14 +266,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 {
                     int length = GetWindowTextLength(hOutputBox);
                     // 输出操作信息
-                    std::wstring operation = L"正在将BrainFuck代码转换为C++代码...\n";
+                    std::wstring operation = L"BrainFuck code being converted to C++ code...\n";
                     SetWindowText(hOutputBox, operation.c_str());
 
                     outfile << outstr_cpp;
                     outfile.close();
 
                     // 输出操作信息
-                    operation = L"正在编译C++代码...\n";
+                    operation = L"Compiling C++ code...\n";
                     std::wstring currentText(length, L'\0');
                     GetWindowText(hOutputBox, &currentText[0], length + 1);
                     SetWindowText(hOutputBox, (currentText + operation).c_str());
@@ -291,17 +291,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     GetWindowText(hOutputBox, &currentText[0], length + 1);
                     if (result != 0)
                     {
-                        std::wstring errorMsg = L"编译失败，错误代码为：" + std::to_wstring(result) + L"\n";
+                        std::wstring errorMsg = L"compile failed, code" + std::to_wstring(result) + L"\n";
                         SetWindowText(hOutputBox, (currentText+errorMsg).c_str());
                     }
                     else
                     {
-                        std::wstring successMsg = L"编译" + userPath + L"完成，用时" + std::to_wstring(duration) + L"毫秒\n";
+                        std::wstring successMsg = L"compile" + userPath + L"successful,time use:" + std::to_wstring(duration) + L"ms\n";
                         SetWindowText(hOutputBox, (currentText+successMsg).c_str());
                     }
                 }
                 else {
-                    MessageBox(hWnd, L"非法的文件路径", L"错误", MB_OK);
+                    MessageBox(hWnd, L"Undefined file path", L"Wrong", MB_OK);
                     break;
                 }
             }
@@ -320,7 +320,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             ofn.hwndOwner = hWnd;
             ofn.lpstrFile = szPath;
             ofn.nMaxFile = sizeof(szPath) / sizeof(szPath[0]);
-            ofn.lpstrFilter = L"\0C++源文件\0*.cpp\0All Files\0*.*\0";
+            ofn.lpstrFilter = L"\0C++ source code\0*.cpp\0All Files\0*.*\0";
             ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
             string str = GetEditBoxText(hEdit);
             // 显示文件对话框
@@ -332,7 +332,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 if (outfile.is_open())
                 {
                     // 输出操作信息
-                    std::wstring operation = L"正将代码保存为.bf文件...\n";
+                    std::wstring operation = L"saving code to .bf file...\n";
                     SetWindowText(hOutputBox, operation.c_str());
                     DWORD startTime = GetTickCount64();
                     outfile << str;
@@ -340,11 +340,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     // 计算用时
                     DWORD endTime = GetTickCount64();
                     DWORD duration = endTime - startTime;
-                    std::wstring success_msg = L"保存" + userPath + L"完成，用时" + std::to_wstring(duration) + L"毫秒\n";
+                    std::wstring success_msg = L"save" + userPath + L"complete,time use" + std::to_wstring(duration) + L"ms\n";
                     SetWindowText(hOutputBox, success_msg.c_str());
                 }
                 else {
-                    MessageBox(hWnd, L"非法的文件路径", L"错误", MB_OK);
+                    MessageBox(hWnd, L"Undefined file path", L"Wrong", MB_OK);
                     break;
                 }
             }
