@@ -1,4 +1,4 @@
-# BrainFuck Simple Compiler
+# BrainFuck Simple Compiler(for windows)
 
 ## Synopsis
 This is a simple compiler for the BrainFuck language, developed by tianxiaoxiao using C++. 
