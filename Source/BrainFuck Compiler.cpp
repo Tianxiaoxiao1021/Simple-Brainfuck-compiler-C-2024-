@@ -67,48 +67,59 @@ std::string GetEditBoxText(HWND hEdit)
     return text;
 }
 std::string gccpath;
-string To_Cpp_Source(const string& code)
-{
+#include <iostream>
+#include <sstream>
+
+using namespace std;
+
+string To_Cpp_Source(const string& code) {
     stringstream ss;
+    string str2;
 
     // 写入文件头
     ss << "#include <iostream>\n";
     ss << "using namespace std;\n";
-    ss << "short ptr = 0;\n";
+    ss << "short ptr2 = 0, ptr3 = 0;\n";
+    ss << "short* ptr = &ptr2;\n";  // 初始化 ptr 指向 ptr2
     ss << "int memory[30000] = {0};\n";  // 初始化 memory 数组
+    ss << "#define func\n";  // 函数前向声明
     ss << "int main() {\n";
 
     // 处理代码
-    for (char i : code)
-    {
-        switch (i)
-        {
+    bool usePtr2 = true;  // 默认使用 ptr2
+    for (char ch : code) {
+        switch (ch) {
         case '>':
-            ss << "    ptr++;\n";
+            ss << "    (*ptr)++;\n";
             break;
         case '<':
-            ss << "    ptr--;\n";
+            ss << "    (*ptr)--;\n";
             break;
         case '+':
-            ss << "    memory[ptr]++;\n";
+            ss << "    memory[*ptr]++;\n";
             break;
         case '-':
-            ss << "    memory[ptr]--;\n";
+            ss << "    memory[*ptr]--;\n";
             break;
         case '.':
-            ss << "    cout << memory[ptr];\n";
+            ss << "    cout << memory[*ptr];\n";
             break;
         case ',':
-            ss << "    cin >> memory[ptr];\n";
+            ss << "    cin >> memory[*ptr];\n";
             break;
         case '[':
-            ss << "    while (memory[ptr]) {\n";
+            ss << "    while (memory[*ptr]) {\n";
             break;
         case ']':
             ss << "    }\n";
             break;
+        case '@':
+            usePtr2 = !usePtr2;
+            ss << "    ptr = " << (usePtr2 ? "&ptr2" : "&ptr3") << ";\n";
+            break;
         }
     }
+
     // 结束 main 函数
     ss << "    system(\"pause\");\n";
     ss << "    return 0;\n";
@@ -421,7 +432,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     // 创建窗口
     HWND hWnd = CreateWindowEx(
-        0, CLASS_NAME, L"BrainFuck Compiler ver 1.7.3", WS_OVERLAPPEDWINDOW,
+        0, CLASS_NAME, L"BrainFuck Compiler v1.8.2", WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
         nullptr, nullptr, hInstance, nullptr
     );
