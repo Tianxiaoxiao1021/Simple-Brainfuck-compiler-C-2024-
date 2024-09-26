@@ -1,13 +1,15 @@
-﻿#include <windows.h>
+﻿#define IMGUI_DEFINE_MATH_OPERATORS
+#include <windows.h>
 #include <commdlg.h>
 #include <string>
 #include <vector>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include "SIMPLE-LOG.h"
 using namespace std;
 // 释放 LPCWSTR
-void freeLPCWSTR(LPCWSTR str) {
+void freeLPCWSTR(LPCWSTR& str) {
     delete[] str;
 }
 //获取程序根目录
@@ -17,6 +19,13 @@ std::wstring GetProgramDirectory()
     GetModuleFileName(NULL, path, MAX_PATH);
     std::wstring directory(path);
     return directory.substr(0, directory.find_last_of(L"\\") + 1);
+}
+//将std::wstring 转为 std::string
+std::string WStringToString(const std::wstring& wstr) {
+    int bufferSize = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
+    std::string str(bufferSize, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &str[0], bufferSize, NULL, NULL);
+    return str;
 }
 // 将 std::string 转换为 LPCWSTR
 LPCWSTR stringToLPCWSTR(const std::string& str) {
@@ -67,11 +76,7 @@ std::string GetEditBoxText(HWND hEdit)
     return text;
 }
 std::string gccpath;
-#include <iostream>
-#include <sstream>
-
 using namespace std;
-
 string To_Cpp_Source(const string& code) {
     stringstream ss;
     string str2;
@@ -87,35 +92,78 @@ string To_Cpp_Source(const string& code) {
 
     // 处理代码
     bool usePtr2 = true;  // 默认使用 ptr2
-    for (char ch : code) {
-        switch (ch) {
+    bool is_inside_func = false;
+    int j = 0;
+    for (int i = 0; i < code.size();i++) {
+        switch (code[i]) {
         case '>':
-            ss << "    (*ptr)++;\n";
+            if (!is_inside_func) ss << "    (*ptr)++;\n";
+            else ss << "(*ptr)++;";
             break;
         case '<':
-            ss << "    (*ptr)--;\n";
+            if (!is_inside_func) ss << "    (*ptr)--;\n";
+            else ss << "(*ptr)--;";
             break;
         case '+':
-            ss << "    memory[*ptr]++;\n";
+            if (!is_inside_func) ss << "    memory[*ptr]++;\n";
+            else ss << "memory[*ptr]++;";
             break;
         case '-':
-            ss << "    memory[*ptr]--;\n";
+            if (!is_inside_func) ss << "    memory[*ptr]--;\n";
+            else ss << "memory[*ptr]--; ";
             break;
         case '.':
-            ss << "    cout << memory[*ptr];\n";
+            if (!is_inside_func) ss << "    cout << memory[*ptr];\n";
+            else ss << "cout<< memory[*ptr];";
             break;
         case ',':
-            ss << "    cin >> memory[*ptr];\n";
+            if (!is_inside_func) ss << "    cin >> memory[*ptr];\n";
+            else ss << "cin >> memory[*ptr]; ";
             break;
         case '[':
-            ss << "    while (memory[*ptr]) {\n";
+            if (!is_inside_func) ss << "    while (memory[*ptr]) {\n";
+            else ss << "while(memory[*ptr]){";
             break;
         case ']':
-            ss << "    }\n";
+            if (!is_inside_func) ss << "    }\n";
+            else ss << "}";
+            break;
+        case '{':
+            ss << "#undef func\n";
+            ss << "#define func ";
+            is_inside_func = true;
+            break;
+        case'}':
+            ss << "\n";
+            is_inside_func = false;
             break;
         case '@':
-            usePtr2 = !usePtr2;
-            ss << "    ptr = " << (usePtr2 ? "&ptr2" : "&ptr3") << ";\n";
+            if (!is_inside_func)
+            {
+                usePtr2 = !usePtr2;
+                ss << "    ptr = " << (usePtr2 ? "&ptr2" : "&ptr3") << ";\n";
+            }
+            else
+            {
+                usePtr2 = !usePtr2;
+                ss << "ptr = " << (usePtr2 ? " & ptr2" : " & ptr3") << ";";
+            }
+            break;
+        case '&':
+            ss << "    func;\n";
+            break;
+        case '(':
+            if (code[i + 1] != '|')
+            {
+                j = stoi(code.substr(code.find("(") + 1, code.find(")") - 1));
+                ss << "    for(int i = 0; i < " << to_string(j) << ";i++){\n";
+            }
+            else {
+                ss << "    for(int i = 0; i < memory[*ptr]; i++){\n";
+            }
+            break;
+        case '^':
+            ss << "    }\n";
             break;
         }
     }
@@ -138,8 +186,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     switch (message)
     {
     case WM_CREATE:
-        // 启用拖放
-        DragAcceptFiles(hWnd, TRUE);
         // 创建菜单
         hMenu = CreateMenu();
         hFileMenu = CreateMenu();
@@ -158,6 +204,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hWorkspaceMenu, L"WorkSpace...");
         AppendMenu(hConfigureMenu, MF_STRING, 4, L"G++ Compiler Path");
         AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hConfigureMenu, L"Configuration...");
+        AppendMenu(hWorkspaceMenu, MF_STRING, 7, L"Count WorkSpace Data");
 
         SetMenu(hWnd, hMenu);
 
@@ -173,13 +220,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             WS_CHILD | WS_VISIBLE | WS_BORDER | SS_LEFT,
             0, 610, 800, 90, hWnd, nullptr, hInst, nullptr
         );
-
+        break;
     case WM_COMMAND:
         if (LOWORD(wParam) == 1) // 处理“导入”菜单项
         {
             OPENFILENAME ofn = { sizeof(OPENFILENAME) };
             WCHAR szFile[260] = { 0 };
-
+            
             ofn.hwndOwner = hWnd;
             ofn.lpstrFile = szFile;
             ofn.nMaxFile = sizeof(szFile) / sizeof(WCHAR);
@@ -215,10 +262,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
             }
         }
+        //清空工作区选项
         else if (LOWORD(wParam) == 2)
         {
             SetWindowText(hEdit, L"");
         }
+        //配置G++编译器路径选项
         else if (LOWORD(wParam) == 4)
         {
             wchar_t szPath[MAX_PATH] = { 0 };
@@ -231,13 +280,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             ofn.nMaxFile = sizeof(szPath) / sizeof(szPath[0]);
             ofn.lpstrFilter = L"Executable Files\0*.exe\0All Files\0*.*\0";
             ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-
             if (GetOpenFileName(&ofn))
             {
                 // 打开文件进行写入
                 std::wstring programDirectory = GetProgramDirectory();
                 std::wstring filePath = programDirectory + L"gccpath.path";
-
                 std::ofstream Gcc_path(filePath.c_str());
                 if (Gcc_path.is_open())
                 {
@@ -251,7 +298,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
             }
         }
-
+        //导出为可执行文件选项
         else if (LOWORD(wParam) == 3)
         {
             wchar_t szPath[MAX_PATH] = { 0 };
@@ -264,7 +311,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             ofn.nMaxFile = sizeof(szPath) / sizeof(szPath[0]);
             ofn.lpstrFilter = L"\0C++ Source Code\0*.cpp\0All Files\0*.*\0";
             ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
-
             // 显示文件对话框
             if (GetSaveFileName(&ofn))
             {
@@ -279,7 +325,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     // 输出操作信息
                     std::wstring operation = L"BrainFuck code being converted to C++ code...\n";
                     SetWindowText(hOutputBox, operation.c_str());
-
                     outfile << outstr_cpp;
                     outfile.close();
 
@@ -317,10 +362,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
             }
         }
+        //清空输出框选项
         if (LOWORD(wParam) == 6)
         {
             SetWindowText(hOutputBox, L"");
         }
+        //保存至.bf文件选项
         if (LOWORD(wParam) == 5)
         {
             wchar_t szPath[MAX_PATH] = { 0 };
@@ -360,12 +407,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
             }
         }
+        //统计工作区选项
+        if (LOWORD(wParam) == 7)
+        {
+            int words = 0;
+            for (auto i : GetEditBoxText(hEdit))
+            {
+                words++;
+            }
+            
+            MessageBox(hWnd, stringToLPCWSTR("words:" + to_string(words) + '\n'+ "G++ Path:" + ((gccpath.empty()) ? "Unknown" : gccpath)), L"Count Result:", MB_OK | MB_ICONINFORMATION);
+        }
         break;
     case WM_SIZE:
 
         RECT rcClient;
         GetClientRect(hWnd, &rcClient);
-
         // 调整编辑框大小以适应窗口
         if (hEdit) {
             SetWindowPos(hEdit, NULL, 0, 0, rcClient.right, rcClient.bottom - 90, SWP_NOZORDER);
@@ -421,7 +478,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     // 保存实例句柄
     hInst = hInstance;
     // 定义窗口类
-    const wchar_t CLASS_NAME[] = L"Simple Window Class";
+    const wchar_t CLASS_NAME[] = L"Window Class";
 
     WNDCLASS wc = {};
     wc.lpfnWndProc = WndProc;
@@ -432,12 +489,17 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     // 创建窗口
     HWND hWnd = CreateWindowEx(
-        0, CLASS_NAME, L"BrainFuck Compiler v1.8.2", WS_OVERLAPPEDWINDOW,
+        0, CLASS_NAME, L"BrainFuck Compiler v1.11.4", WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
         nullptr, nullptr, hInstance, nullptr
     );
     // 创建子窗口
     if (hWnd == nullptr) return 0;
+    // 启用拖放
+    DragAcceptFiles(hWnd, TRUE);
+    ShowWindow(hWnd, nCmdShow);
+    UpdateWindow(hWnd);
+    ShowWindow(hOutputBox, nCmdShow);
     ifstream Gcc_path(L"gccpath.path");
     if (Gcc_path.is_open())
     {
@@ -446,12 +508,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     }
     else
     {
-        MessageBox(hWnd, L"Failed to open file for reading.", L"Error", MB_OK | MB_ICONERROR);
+        MessageBox(hWnd, L"Failed:cannot read gccpath.path file to get G++ compiler path.\n Please check file name or configuration compiler path", L"BrainFuck Compiler", MB_OK | MB_ICONERROR);
     }
-    ShowWindow(hWnd, nCmdShow);
-    UpdateWindow(hWnd);
-    ShowWindow(hOutputBox, nCmdShow);
-
     // 进入消息循环
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0))
@@ -459,6 +517,5 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
     return 0;
 }
